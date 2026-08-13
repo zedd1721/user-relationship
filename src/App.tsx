@@ -2,13 +2,10 @@ import { lazy, Suspense, useMemo, useState } from 'react';
 import UserSearch from './UserSearch';
 import GraphFilters from './GraphFilters';
 import GraphLegend from './GraphLegend';
-import GraphErrorBoundary from './GraphErrorBoundary';
-import ViewModeToggle, { type ViewMode } from './ViewModeToggle';
 import { mockUsers } from './mockUsers';
 import { FILTERABLE_NODE_TYPES } from './nodeColors';
 import type { GraphNode, NodeType, UserGraphData } from './types';
 
-const RelationshipGraph3D = lazy(() => import('./RelationshipGraph3D'));
 const RelationshipGraph2D = lazy(() => import('./RelationshipGraph2D'));
 
 function GraphLoadingFallback() {
@@ -23,7 +20,6 @@ function App() {
   const [selectedUser, setSelectedUser] = useState<UserGraphData | null>(null);
   const [activeTypes, setActiveTypes] = useState<Set<NodeType>>(new Set(FILTERABLE_NODE_TYPES));
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('2d');
 
   const handleSelectUser = (user: UserGraphData) => {
     setSelectedUser(user);
@@ -71,13 +67,7 @@ function App() {
       <div className="absolute inset-0">
         {hasGraph && filteredData ? (
           <Suspense fallback={<GraphLoadingFallback />}>
-            {viewMode === '3d' ? (
-              <GraphErrorBoundary key={filteredData.userId} onFallbackToMode={() => setViewMode('2d')}>
-                <RelationshipGraph3D data={filteredData} onNodeSelect={setSelectedNode} />
-              </GraphErrorBoundary>
-            ) : (
-              <RelationshipGraph2D data={filteredData} onNodeSelect={setSelectedNode} />
-            )}
+            <RelationshipGraph2D data={filteredData} onNodeSelect={setSelectedNode} />
           </Suspense>
         ) : (
           <div className="flex h-full w-full items-center justify-center px-4 text-center text-gray-500">
@@ -131,15 +121,6 @@ function App() {
         <div className="pointer-events-none absolute bottom-4 left-4 z-10">
           <div className="pointer-events-auto">
             <GraphLegend />
-          </div>
-        </div>
-      )}
-
-      {/* Bottom-right: 2D/3D view toggle */}
-      {hasGraph && (
-        <div className="pointer-events-none absolute bottom-4 right-4 z-10">
-          <div className="pointer-events-auto">
-            <ViewModeToggle mode={viewMode} onChange={setViewMode} />
           </div>
         </div>
       )}
