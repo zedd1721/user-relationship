@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import ForceGraph2D, { type ForceGraphMethods, type NodeObject, type LinkObject } from 'react-force-graph-2d';
 import type { GraphEdge, GraphNode, UserGraphData } from './types';
 import { NODE_COLORS } from './nodeColors';
@@ -17,6 +17,7 @@ export default function RelationshipGraph2D({ data, onNodeSelect }: Relationship
   const fgRef = useRef<ForceGraphMethods<FGNode, FGLink>>(undefined);
   const { containerRef, dimensions } = useContainerSize<HTMLDivElement>();
   const hasAutoFitRef = useRef(false);
+  const pointerDownInGraphRef = useRef(false);
 
   const graphData = useMemo(() => {
     hasAutoFitRef.current = false;
@@ -25,6 +26,46 @@ export default function RelationshipGraph2D({ data, onNodeSelect }: Relationship
       links: data.edges.map((e) => ({ ...e })),
     };
   }, [data]);
+
+  useEffect(() => {
+    const releaseStuckPointer = (event: PointerEvent) => {
+      const container = containerRef.current;
+      if (!container || !pointerDownInGraphRef.current) return;
+
+      pointerDownInGraphRef.current = false;
+
+      // If the pointer was released over an overlay outside the canvas,
+      // notify the graph so its internal drag state is cleared as well.
+      if (!container.contains(event.target as Node)) {
+        const canvas = container.querySelector('canvas');
+        canvas?.dispatchEvent(
+          new PointerEvent('pointerup', {
+            bubbles: true,
+            button: event.button,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            pointerId: event.pointerId,
+            pointerType: event.pointerType,
+          }),
+        );
+      }
+    };
+
+    const trackPointerDown = (event: PointerEvent) => {
+      pointerDownInGraphRef.current = Boolean(
+        containerRef.current?.contains(event.target as Node),
+      );
+    };
+
+    window.addEventListener('pointerdown', trackPointerDown, true);
+    window.addEventListener('pointerup', releaseStuckPointer, true);
+    window.addEventListener('pointercancel', releaseStuckPointer, true);
+    return () => {
+      window.removeEventListener('pointerdown', trackPointerDown, true);
+      window.removeEventListener('pointerup', releaseStuckPointer, true);
+      window.removeEventListener('pointercancel', releaseStuckPointer, true);
+    };
+  }, [containerRef]);
 
   return (
     <div ref={containerRef} className="absolute inset-0 h-full w-full overflow-hidden bg-[#0b0c10]">
@@ -47,6 +88,9 @@ export default function RelationshipGraph2D({ data, onNodeSelect }: Relationship
             fgRef.current?.zoomToFit(400, 60);
           }}
           enableNodeDrag={true}
+          // Prevent background panning from leaving the canvas in a stuck
+          // pointer-drag state when the pointer is released outside it.
+          enablePanInteraction={false}
         />
       )}
     </div>
