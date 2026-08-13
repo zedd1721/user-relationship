@@ -1,9 +1,46 @@
+import { forceCollide } from 'd3-force-3d';
 import type { GraphEdge, GraphNode } from './types';
 
 export const NODE_REL_SIZE = 4;
 
+/** Fixed world-space label font size (not rescaled by zoom), so collision
+ * sizing below matches exactly what gets drawn on canvas. */
+export const LABEL_FONT_SIZE = 12;
+export const LABEL_FONT = `${LABEL_FONT_SIZE}px system-ui, sans-serif`;
+
 export function nodeRadius(node: Pick<GraphNode, 'val'>): number {
   return Math.sqrt(Math.max(0, node.val ?? 3)) * NODE_REL_SIZE;
+}
+
+let measureCtx: CanvasRenderingContext2D | null = null;
+const labelWidthCache = new Map<string, number>();
+
+function measureLabelWidth(label: string): number {
+  const cached = labelWidthCache.get(label);
+  if (cached !== undefined) return cached;
+
+  if (!measureCtx) {
+    measureCtx = document.createElement('canvas').getContext('2d');
+  }
+
+  let width: number;
+  if (measureCtx) {
+    measureCtx.font = LABEL_FONT;
+    width = measureCtx.measureText(label).width;
+  } else {
+    // Fallback for environments without canvas (e.g. SSR): rough estimate.
+    width = label.length * LABEL_FONT_SIZE * 0.55;
+  }
+
+  labelWidthCache.set(label, width);
+  return width;
+}
+
+/** Radius (in graph units) a node needs so its label doesn't collide with neighbors. */
+export function nodeCollisionRadius(node: Pick<GraphNode, 'val' | 'label'>): number {
+  const r = nodeRadius(node);
+  const labelHalfWidth = measureLabelWidth(node.label) / 2;
+  return Math.max(r, labelHalfWidth) + r + 12;
 }
 
 export function linkWidthForStrength(strength: number): number {
@@ -20,21 +57,26 @@ export function linkOpacityForStrength(strength: number): number {
 
 interface ForceConfigurable {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  d3Force(forceName: 'link' | 'charge'): any;
+  d3Force(forceName: string, forceFn?: any): any;
   d3ReheatSimulation(): unknown;
 }
 
 /**
- * Pushes nodes further apart and stretches links so node labels have room
- * to breathe instead of overlapping in a tight cluster.
+ * Pushes nodes apart based on their actual label width (via a collision
+ * force) and stretches links, so labels have room to breathe instead of
+ * overlapping in a tight cluster.
  */
 export function spreadOutForces(fg: ForceConfigurable): void {
-  fg.d3Force('charge')?.strength(-220);
+  fg.d3Force('charge')?.strength(-160);
   fg.d3Force('link')
     ?.distance((link: { source: Pick<GraphNode, 'val'>; target: Pick<GraphNode, 'val'> }) =>
-      nodeRadius(link.source) + nodeRadius(link.target) + 70,
+      nodeRadius(link.source) + nodeRadius(link.target) + 50,
     )
-    .strength(0.6);
+    .strength(0.5);
+  fg.d3Force(
+    'collide',
+    forceCollide<Pick<GraphNode, 'val' | 'label'>>((node) => nodeCollisionRadius(node)).strength(1),
+  );
   fg.d3ReheatSimulation();
 }
 

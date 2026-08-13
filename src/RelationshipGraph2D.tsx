@@ -4,6 +4,8 @@ import type { GraphEdge, GraphNode, UserGraphData } from './types';
 import { NODE_COLORS } from './nodeColors';
 import {
   computeNodeGlowIntensity,
+  LABEL_FONT,
+  LABEL_FONT_SIZE,
   linkOpacityForStrength,
   linkWidthForStrength,
   nodeRadius,
@@ -99,7 +101,7 @@ export default function RelationshipGraph2D({ data, onNodeSelect }: Relationship
           nodeLabel={(node) => node.label}
           nodeVal={(node) => node.val ?? 3}
           nodeColor={(node) => NODE_COLORS[node.type]}
-          nodeCanvasObject={(node, ctx, globalScale) => {
+          nodeCanvasObject={(node, ctx) => {
             const x = node.x ?? 0;
             const y = node.y ?? 0;
             const r = nodeRadius(node);
@@ -123,13 +125,24 @@ export default function RelationshipGraph2D({ data, onNodeSelect }: Relationship
               ctx.fill();
             }
 
-            // Always-visible label under the node.
-            const fontSize = Math.max(10, 12 / globalScale);
-            ctx.font = `${fontSize}px system-ui, sans-serif`;
+            // Always-visible label under the node, with a backing pill for
+            // legibility over edges and neighboring nodes.
+            ctx.font = LABEL_FONT;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
+            const textY = y + r + 4;
+            const textWidth = ctx.measureText(node.label).width;
+            const padX = 4;
+            const padY = 2;
+            ctx.fillStyle = 'rgba(11, 12, 16, 0.72)';
+            ctx.fillRect(
+              x - textWidth / 2 - padX,
+              textY - padY,
+              textWidth + padX * 2,
+              LABEL_FONT_SIZE + padY * 2,
+            );
             ctx.fillStyle = 'rgba(229, 231, 235, 0.95)';
-            ctx.fillText(node.label, x, y + r + 2);
+            ctx.fillText(node.label, x, textY);
           }}
           nodePointerAreaPaint={(node, color, ctx) => {
             const x = node.x ?? 0;
