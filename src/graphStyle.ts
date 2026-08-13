@@ -1,5 +1,6 @@
 import { forceCollide } from 'd3-force-3d';
-import type { GraphEdge, GraphNode } from './types';
+import { FILTERABLE_NODE_TYPES } from './nodeColors';
+import type { GraphEdge, GraphNode, NodeType } from './types';
 
 export const NODE_REL_SIZE = 4;
 
@@ -61,10 +62,58 @@ interface ForceConfigurable {
   d3ReheatSimulation(): unknown;
 }
 
+/** Target angle (radians) each node type is pulled toward, evenly spaced in a circle. */
+export function angleForType(type: NodeType): number {
+  const index = FILTERABLE_NODE_TYPES.indexOf(type);
+  if (index === -1) return 0;
+  return (index / FILTERABLE_NODE_TYPES.length) * Math.PI * 2;
+}
+
+interface SimNode {
+  type: NodeType;
+  x?: number;
+  y?: number;
+  vx?: number;
+  vy?: number;
+}
+
+/**
+ * Custom d3-force that nudges each non-user node's angle (around the origin)
+ * toward its type's assigned sector, so groups/posts/followers/etc. cluster
+ * into distinct wedges instead of scattering randomly around the hub.
+ */
+function forceTypeSector(strength: number) {
+  let nodes: SimNode[] = [];
+
+  function force(alpha: number) {
+    for (const node of nodes) {
+      if (node.type === 'user') continue;
+      const x = node.x ?? 0;
+      const y = node.y ?? 0;
+      const r = Math.hypot(x, y) || 1;
+      const targetAngle = angleForType(node.type);
+      const currentAngle = Math.atan2(y, x);
+      const diff = Math.atan2(Math.sin(targetAngle - currentAngle), Math.cos(targetAngle - currentAngle));
+      const newAngle = currentAngle + diff * strength * alpha;
+      const targetX = r * Math.cos(newAngle);
+      const targetY = r * Math.sin(newAngle);
+      node.vx = (node.vx ?? 0) + (targetX - x) * strength * alpha;
+      node.vy = (node.vy ?? 0) + (targetY - y) * strength * alpha;
+    }
+  }
+
+  force.initialize = (initializedNodes: SimNode[]) => {
+    nodes = initializedNodes;
+  };
+
+  return force;
+}
+
 /**
  * Pushes nodes apart based on their actual label width (via a collision
- * force) and stretches links, so labels have room to breathe instead of
- * overlapping in a tight cluster.
+ * force), stretches links, and groups nodes into per-type angular sectors
+ * so labels have room to breathe and same-type nodes cluster together
+ * instead of overlapping in a mixed-up tight cluster.
  */
 export function spreadOutForces(fg: ForceConfigurable): void {
   fg.d3Force('charge')?.strength(-160);
@@ -77,6 +126,7 @@ export function spreadOutForces(fg: ForceConfigurable): void {
     'collide',
     forceCollide<Pick<GraphNode, 'val' | 'label'>>((node) => nodeCollisionRadius(node)).strength(1),
   );
+  fg.d3Force('sector', forceTypeSector(0.6));
   fg.d3ReheatSimulation();
 }
 
