@@ -88,9 +88,10 @@ export default function RelationshipGraph2D({ data, onNodeSelect }: Relationship
             fgRef.current?.zoomToFit(400, 60);
           }}
           enableNodeDrag={true}
-          // Prevent background panning from leaving the canvas in a stuck
-          // pointer-drag state when the pointer is released outside it.
-          enablePanInteraction={false}
+          // Allow dragging the canvas background to pan the graph. The global
+          // pointer-release recovery above prevents this from getting stuck
+          // when the pointer is released over an overlay.
+          enablePanInteraction={true}
         />
       )}
     </div>
