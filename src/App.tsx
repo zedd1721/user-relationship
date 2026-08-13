@@ -1,14 +1,23 @@
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import UserSearch from './UserSearch';
 import GraphFilters from './GraphFilters';
 import GraphLegend from './GraphLegend';
-import RelationshipGraph3D from './RelationshipGraph3D';
-import RelationshipGraph2D from './RelationshipGraph2D';
 import GraphErrorBoundary from './GraphErrorBoundary';
 import ViewModeToggle, { type ViewMode } from './ViewModeToggle';
 import { mockUsers } from './mockUsers';
 import { FILTERABLE_NODE_TYPES } from './nodeColors';
 import type { GraphNode, NodeType, UserGraphData } from './types';
+
+const RelationshipGraph3D = lazy(() => import('./RelationshipGraph3D'));
+const RelationshipGraph2D = lazy(() => import('./RelationshipGraph2D'));
+
+function GraphLoadingFallback() {
+  return (
+    <div className="flex h-full w-full items-center justify-center text-sm text-gray-500">
+      Loading graph…
+    </div>
+  );
+}
 
 function App() {
   const [selectedUser, setSelectedUser] = useState<UserGraphData | null>(null);
@@ -34,6 +43,10 @@ function App() {
     });
   };
 
+  const handleSetAllTypes = (types: NodeType[]) => {
+    setActiveTypes(new Set(types));
+  };
+
   const filteredData: UserGraphData | null = useMemo(() => {
     if (!selectedUser) return null;
     const visibleNodeIds = new Set(
@@ -57,13 +70,15 @@ function App() {
       {/* Full-bleed graph layer */}
       <div className="absolute inset-0">
         {hasGraph && filteredData ? (
-          viewMode === '3d' ? (
-            <GraphErrorBoundary key={filteredData.userId} onFallbackToMode={() => setViewMode('2d')}>
-              <RelationshipGraph3D data={filteredData} onNodeSelect={setSelectedNode} />
-            </GraphErrorBoundary>
-          ) : (
-            <RelationshipGraph2D data={filteredData} onNodeSelect={setSelectedNode} />
-          )
+          <Suspense fallback={<GraphLoadingFallback />}>
+            {viewMode === '3d' ? (
+              <GraphErrorBoundary key={filteredData.userId} onFallbackToMode={() => setViewMode('2d')}>
+                <RelationshipGraph3D data={filteredData} onNodeSelect={setSelectedNode} />
+              </GraphErrorBoundary>
+            ) : (
+              <RelationshipGraph2D data={filteredData} onNodeSelect={setSelectedNode} />
+            )}
+          </Suspense>
         ) : (
           <div className="flex h-full w-full items-center justify-center px-4 text-center text-gray-500">
             {selectedUser
@@ -83,7 +98,7 @@ function App() {
 
         {selectedUser && (
           <div className="pointer-events-auto relative z-10">
-            <GraphFilters activeTypes={activeTypes} onToggle={handleToggleType} />
+            <GraphFilters activeTypes={activeTypes} onToggle={handleToggleType} onSetAll={handleSetAllTypes} />
           </div>
         )}
       </div>
@@ -91,7 +106,11 @@ function App() {
       {/* Top-right: node details */}
       {selectedUser && (
         <div className="pointer-events-none absolute right-4 top-4 z-10 w-64">
-          <div className="pointer-events-auto rounded-lg border border-gray-700 bg-gray-900/80 p-4 backdrop-blur-sm">
+          <div
+            className="pointer-events-auto rounded-lg border border-gray-700 bg-gray-900/80 p-4 backdrop-blur-sm"
+            role="status"
+            aria-live="polite"
+          >
             <h3 className="mb-2 text-sm font-medium text-gray-400">Details</h3>
             {selectedNode ? (
               <div>

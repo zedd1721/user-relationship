@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef } from 'react';
 import ForceGraph2D, { type ForceGraphMethods, type NodeObject, type LinkObject } from 'react-force-graph-2d';
 import type { GraphEdge, GraphNode, UserGraphData } from './types';
 import { NODE_COLORS } from './nodeColors';
-import { linkWidthForStrength, linkOpacityForStrength } from './graphStyle';
+import {
+  computeNodeGlowIntensity,
+  linkOpacityForStrength,
+  linkWidthForStrength,
+  nodeRadius,
+  spreadOutForces,
+} from './graphStyle';
 import { useContainerSize } from './useContainerSize';
 
 type FGNode = NodeObject<GraphNode>;
@@ -26,6 +32,20 @@ export default function RelationshipGraph2D({ data, onNodeSelect }: Relationship
       links: data.edges.map((e) => ({ ...e })),
     };
   }, [data]);
+
+  const nodeGlow = useMemo(
+    () => computeNodeGlowIntensity(data.nodes, data.edges),
+    [data],
+  );
+
+  useEffect(() => {
+    if (!fgRef.current) return;
+    spreadOutForces(fgRef.current);
+    // graphData changes reset the underlying d3 forces to their defaults,
+    // so these custom forces need reapplying whenever a new user (or the
+    // canvas size) becomes available.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, dimensions.width > 0]);
 
   useEffect(() => {
     const releaseStuckPointer = (event: PointerEvent) => {
@@ -79,6 +99,46 @@ export default function RelationshipGraph2D({ data, onNodeSelect }: Relationship
           nodeLabel={(node) => node.label}
           nodeVal={(node) => node.val ?? 3}
           nodeColor={(node) => NODE_COLORS[node.type]}
+          nodeCanvasObject={(node, ctx, globalScale) => {
+            const x = node.x ?? 0;
+            const y = node.y ?? 0;
+            const r = nodeRadius(node);
+            const glow = nodeGlow.get(node.id) ?? 0;
+            const color = NODE_COLORS[node.type];
+
+            // Glow halo: brighter/wider for stronger relationships.
+            if (glow > 0) {
+              ctx.save();
+              ctx.shadowColor = color;
+              ctx.shadowBlur = 6 + glow * 22;
+              ctx.beginPath();
+              ctx.arc(x, y, r, 0, 2 * Math.PI);
+              ctx.fillStyle = color;
+              ctx.fill();
+              ctx.restore();
+            } else {
+              ctx.beginPath();
+              ctx.arc(x, y, r, 0, 2 * Math.PI);
+              ctx.fillStyle = color;
+              ctx.fill();
+            }
+
+            // Always-visible label under the node.
+            const fontSize = Math.max(10, 12 / globalScale);
+            ctx.font = `${fontSize}px system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = 'rgba(229, 231, 235, 0.95)';
+            ctx.fillText(node.label, x, y + r + 2);
+          }}
+          nodePointerAreaPaint={(node, color, ctx) => {
+            const x = node.x ?? 0;
+            const y = node.y ?? 0;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, nodeRadius(node), 0, 2 * Math.PI);
+            ctx.fill();
+          }}
           linkWidth={(link) => linkWidthForStrength(link.strength)}
           linkColor={(link) => `rgba(255,255,255,${linkOpacityForStrength(link.strength)})`}
           onNodeClick={(node) => onNodeSelect(node)}
