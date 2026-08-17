@@ -1,22 +1,21 @@
 # Prompt: User Relationship Graph (Ego Network) — Static UI
 
 Build a React + TypeScript feature that visualizes a single user's relationships
-as an interactive 3D force-directed graph, using `react-force-graph-3d`. All data
+as an interactive 2D force-directed graph, using `react-force-graph-2d`. All data
 is static/mocked for now — no backend calls.
 
 ## Tech stack
 - React + TypeScript
-- `react-force-graph-3d` (built on three.js) for the graph rendering
-- `three` as a peer dependency
+- `react-force-graph-2d` for the graph rendering
+- D3 force simulation for layout and collision handling
 - Tailwind CSS for styling
 - No routing/backend needed — everything is client-state and static mock data
 
-## Camera / interaction requirements
-`react-force-graph-3d` ships these controls by default — make sure they're
+## Canvas / interaction requirements
+`react-force-graph-2d` ships these controls by default — make sure they're
 enabled and not accidentally disabled via props:
-- **Scroll wheel** → zoom in/out (default OrbitControls behavior)
-- **Left-click drag on empty space** → rotate/orbit the camera around the graph
-- **Right-click drag (or two-finger drag on trackpad)** → pan the camera
+- **Scroll wheel** → zoom in/out
+- **Left-click drag on empty space** → pan the graph
 - **Left-click drag on a node** → drag that individual node (this is
   `enableNodeDrag`, true by default — don't disable it)
 - Do not lock the camera or override `controlType` — leave it as the default
@@ -67,7 +66,7 @@ Each user's graph data should follow the `UserGraphData` shape above.
 2. **Select a user**: clicking a search result loads that user's graph
    below the search bar. Clear the previous graph when a new user is
    selected.
-3. **Graph rendering**: use `ForceGraph3D` to render the selected user's
+3. **Graph rendering**: use `ForceGraph2D` to render the selected user's
    `nodes` and `edges`.
    - The user node sits at the visual center (pin it via `fx`/`fy`/`fz` or
      let force layout naturally centralize it — either is fine for this
@@ -98,7 +97,7 @@ Each user's graph data should follow the `UserGraphData` shape above.
 ## Component structure (suggested)
 - `App.tsx` — layout, holds selected user state
 - `UserSearch.tsx` — search input + results dropdown
-- `RelationshipGraph3D.tsx` — wraps `ForceGraph3D`, takes filtered
+- `RelationshipGraph2D.tsx` — wraps `ForceGraph2D`, takes filtered
   `UserGraphData` as props
 - `GraphFilters.tsx` — checkbox list, lifts filter state up to `App`
 - `mockUsers.ts` — static data

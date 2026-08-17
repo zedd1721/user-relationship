@@ -1,4 +1,4 @@
-import { forceCollide } from 'd3-force-3d';
+import { forceCollide, type SimulationNodeDatum } from 'd3-force';
 import { FILTERABLE_NODE_TYPES } from './nodeColors';
 import type { GraphEdge, GraphNode, NodeType } from './types';
 
@@ -124,7 +124,9 @@ export function spreadOutForces(fg: ForceConfigurable): void {
     .strength(0.5);
   fg.d3Force(
     'collide',
-    forceCollide<Pick<GraphNode, 'val' | 'label'>>((node) => nodeCollisionRadius(node)).strength(1),
+    forceCollide<Pick<GraphNode, 'val' | 'label'> & SimulationNodeDatum>((node) =>
+      nodeCollisionRadius(node),
+    ).strength(1),
   );
   fg.d3Force('sector', forceTypeSector(0.6));
   fg.d3ReheatSimulation();
